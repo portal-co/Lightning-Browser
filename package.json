@@ -1,0 +1,11 @@
+{
+    "name": "Lightning-Browser",
+    "license": "MPL-2.0",
+    "type": "module",
+    "zshy": {
+        "exports": {}
+    },
+    "devDependencies": {
+        "zshy": "^0.7.0"
+    }
+}
