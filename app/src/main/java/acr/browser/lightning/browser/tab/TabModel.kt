@@ -32,7 +32,7 @@ interface TabModel {
     /**
      * Load a [url] in the tab.
      */
-    fun loadUrl(url: String)
+    suspend fun loadUrl(url: String)
 
     /**
      * Load a URL using the provided [tabInitializer].
@@ -42,12 +42,12 @@ interface TabModel {
     /**
      * Go back in the navigation tree.
      */
-    fun goBack()
+    suspend fun goBack()
 
     /**
      * True if [goBack] has something to go back to, false otherwise.
      */
-    fun canGoBack(): Boolean
+    suspend fun canGoBack(): Boolean
 
     /**
      * Emits changes to the [canGoBack] status.
@@ -57,12 +57,12 @@ interface TabModel {
     /**
      * Go forward in the navigation tree.
      */
-    fun goForward()
+    suspend fun goForward()
 
     /**
      * True if [goForward] has something to go forward to, false otherwise.
      */
-    fun canGoForward(): Boolean
+    suspend fun canGoForward(): Boolean
 
     /**
      * Emits changes to the [canGoForward] status.
@@ -77,32 +77,32 @@ interface TabModel {
     /**
      * Reload the page the browser is currently showing.
      */
-    fun reload()
+    suspend fun reload()
 
     /**
      * Stop loading the current page if it is loading. If the page is not loading, has no effect.
      */
-    fun stopLoading()
+    suspend fun stopLoading()
 
     /**
      * Highlight words in the webpage that match the [query].
      */
-    fun find(query: String)
+    suspend fun find(query: String)
 
     /**
      * Move to the next word highlighted by [find].
      */
-    fun findNext()
+    suspend fun findNext()
 
     /**
      * Move to the previous word highlighted by [find].
      */
-    fun findPrevious()
+    suspend fun findPrevious()
 
     /**
      * Remove highlighting from all words highlighted by [find].
      */
-    fun clearFindMatches()
+    suspend fun clearFindMatches()
 
     /**
      * The current query that is being highlighted by [find].
@@ -174,9 +174,9 @@ interface TabModel {
     fun titleChanges(): StateFlow<String?>
 
     /**
-     * The current SSL certificate information about the webpage.
+     * Get the current SSL certificate information about the webpage.
      */
-    val sslCertificateInfo: SslCertificateInfo?
+    suspend fun getSslCertificateInfo(): SslCertificateInfo?
 
     /**
      * The current state of the SSL certificate.
@@ -238,7 +238,7 @@ interface TabModel {
     /**
      * Handle a message produced by another tab emitting to [createWindowRequests].
      */
-    fun handleMessage(message: Message)
+    suspend fun handleMessage(message: Message)
 
     /**
      * Emits requests by the browser to automatically open a new tab and load the URL provided by
@@ -263,25 +263,30 @@ interface TabModel {
     fun showHideToolbar(): Flow<Boolean>
 
     /**
-     * True if the tab is in the foreground, false if it is in the background. Used to prevent
-     * background tabs from consuming disproportionate amounts of resources when they are unused.
+     * Move the tab to the foreground.
      */
-    var isForeground: Boolean
+    suspend fun foreground()
+
+    /**
+     * Move the tab to the background. Used to prevent background tabs from consuming
+     * disproportionate amounts of resources when they are unused.
+     */
+    suspend fun background()
 
     /**
      * Teardown the current tab and release held resources.
      */
-    fun destroy()
+    suspend fun destroy()
 
     /**
      * Restore the tab state from a bundle created by [freeze].
      */
-    fun restore(bundle: Bundle)
+    suspend fun restore(bundle: Bundle)
 
     /**
      * Freeze the current state of the tab and return it as a [Bundle].
      */
-    fun freeze(): Bundle
+    suspend fun freeze(): Bundle
 
     /**
      * Potential favicon states.

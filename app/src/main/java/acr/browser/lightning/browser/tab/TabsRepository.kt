@@ -61,7 +61,7 @@ class TabsRepository @Inject constructor(
         isInitialized.await()
         tabPager.clearAllTabs()
 
-        tabsList.forEach(TabModel::destroy)
+        tabsList.forEach { it.destroy() }
         tabsList = emptyList()
 
         tabsListStateFlow.emit(tabsList)

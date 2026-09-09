@@ -144,8 +144,9 @@ class TabAdapter @AssistedInject constructor(
         previewModel.previewForId(id)
     }
 
-    private val webView: WebView
-        get() = webViewLazyWithInitialization
+    private suspend fun webView(): WebView = withContext(coroutineDispatchers.main) {
+        webViewLazyWithInitialization
+    }
 
     private val titleStateFlow = MutableStateFlow(
         latentInitializer?.initialTitle
@@ -154,6 +155,10 @@ class TabAdapter @AssistedInject constructor(
     private val faviconStateFlow = MutableStateFlow(
         latentInitializer?.let { TabModel.Favicon.Frozen } ?: TabModel.Favicon.None
     )
+
+    private val urlStateFlow = MutableStateFlow("")
+
+    private val progressStateFlow = MutableStateFlow(100)
 
     private val previewStateFlow = MutableStateFlow<TabModel.Preview>(TabModel.Preview.None)
 
@@ -164,7 +169,7 @@ class TabAdapter @AssistedInject constructor(
         tabCoroutineScope.launch {
             merge(
                 tabWebViewClient.startedSharedFlow.map { null },
-                tabWebViewClient.finishedSharedFlow.map { webView.title },
+                tabWebViewClient.finishedSharedFlow.map { webView().title },
                 tabWebChromeClient.titleShareFlow
             ).collectLatest { titleStateFlow.emit(it) }
         }
@@ -178,7 +183,7 @@ class TabAdapter @AssistedInject constructor(
             @OptIn(FlowPreview::class)
             tabWebViewClient.finishedSharedFlow
                 .debounce(100.milliseconds)
-                .map { renderViewToBitmap(webView) }
+                .map { renderViewToBitmap(webView()) }
                 .flowOn(coroutineDispatchers.main)
                 .map { bitmap ->
                     if (bitmap != null) {
@@ -202,10 +207,20 @@ class TabAdapter @AssistedInject constructor(
                 .flowOn(coroutineDispatchers.io)
                 .collectLatest { previewStateFlow.emit(it) }
         }
+        tabCoroutineScope.launch {
+            tabWebViewClient.urlSharedFlow.collect {
+                urlStateFlow.emit(it)
+            }
+        }
+        tabCoroutineScope.launch {
+            tabWebChromeClient.progressSharedFlow.collect {
+                progressStateFlow.emit(it)
+            }
+        }
     }
 
-    override fun loadUrl(url: String) {
-        webView.loadUrl(url, requestHeaders)
+    override suspend fun loadUrl(url: String) {
+        webView().loadUrl(url, requestHeaders)
     }
 
     override fun loadFromInitializer(tabInitializer: TabInitializer) {
@@ -214,24 +229,24 @@ class TabAdapter @AssistedInject constructor(
         }
     }
 
-    override fun goBack() {
-        webView.goBack()
+    override suspend fun goBack() {
+        webView().goBack()
     }
 
-    override fun canGoBack(): Boolean = webView.canGoBack()
+    override suspend fun canGoBack(): Boolean = webView().canGoBack()
 
     override fun canGoBackChanges(): Flow<Boolean> = tabWebViewClient.goBackSharedFlow
 
-    override fun goForward() {
-        webView.goForward()
+    override suspend fun goForward() {
+        webView().goForward()
     }
 
-    override fun canGoForward(): Boolean = webView.canGoForward()
+    override suspend fun canGoForward(): Boolean = webView().canGoForward()
 
     override fun canGoForwardChanges(): Flow<Boolean> = tabWebViewClient.goForwardSharedFlow
 
     override suspend fun toggleDesktopAgent() {
-        webView.settings.userAgentString = if (!toggleDesktop) {
+        webView().settings.userAgentString = if (!toggleDesktop) {
             DESKTOP_USER_AGENT
         } else {
             userAgentProvider.getUserAgent()
@@ -240,29 +255,29 @@ class TabAdapter @AssistedInject constructor(
         toggleDesktop = !toggleDesktop
     }
 
-    override fun reload() {
-        webView.reload()
+    override suspend fun reload() {
+        webView().reload()
     }
 
-    override fun stopLoading() {
-        webView.stopLoading()
+    override suspend fun stopLoading() {
+        webView().stopLoading()
     }
 
-    override fun find(query: String) {
-        webView.findAllAsync(query)
+    override suspend fun find(query: String) {
+        webView().findAllAsync(query)
         findInPageQuery = query
     }
 
-    override fun findNext() {
-        webView.findNext(true)
+    override suspend fun findNext() {
+        webView().findNext(true)
     }
 
-    override fun findPrevious() {
-        webView.findNext(false)
+    override suspend fun findPrevious() {
+        webView().findNext(false)
     }
 
-    override fun clearFindMatches() {
-        webView.clearMatches()
+    override suspend fun clearFindMatches() {
+        webView().clearMatches()
         findInPageQuery = null
     }
 
@@ -301,26 +316,25 @@ class TabAdapter @AssistedInject constructor(
     }
 
     override val url: String
-        get() = webView.url.orEmpty()
+        get() = urlStateFlow.value
 
-    override fun urlChanges(): Flow<String> = tabWebViewClient.urlSharedFlow
+    override fun urlChanges(): Flow<String> = urlStateFlow
 
     override val title: String?
         get() = titleStateFlow.value
 
     override fun titleChanges(): StateFlow<String?> = titleStateFlow
 
-    override val sslCertificateInfo: SslCertificateInfo?
-        get() = webView.certificate?.let {
-            SslCertificateInfo(
-                issuedByCommonName = it.issuedBy.cName,
-                issuedToCommonName = it.issuedTo.cName,
-                issuedToOrganizationName = it.issuedTo.oName,
-                issueDate = it.validNotBeforeDate,
-                expireDate = it.validNotAfterDate,
-                sslState = sslState
-            )
-        }
+    override suspend fun getSslCertificateInfo(): SslCertificateInfo? = webView().certificate?.let {
+        SslCertificateInfo(
+            issuedByCommonName = it.issuedBy.cName,
+            issuedToCommonName = it.issuedTo.cName,
+            issuedToOrganizationName = it.issuedTo.oName,
+            issueDate = it.validNotBeforeDate,
+            expireDate = it.validNotAfterDate,
+            sslState = sslState
+        )
+    }
 
     override val sslState: SslState
         get() = tabWebViewClient.sslStateFlow.value
@@ -328,9 +342,9 @@ class TabAdapter @AssistedInject constructor(
     override fun sslChanges(): StateFlow<SslState> = tabWebViewClient.sslStateFlow
 
     override val loadingProgress: Int
-        get() = webView.progress
+        get() = progressStateFlow.value
 
-    override fun loadingProgress(): Flow<Int> = tabWebChromeClient.progressSharedFlow
+    override fun loadingProgress(): Flow<Int> = progressStateFlow
 
     override fun downloadRequests(): Flow<PendingDownload> = downloadsShareFlow
 
@@ -348,9 +362,9 @@ class TabAdapter @AssistedInject constructor(
         tabWebChromeClient.hideCustomView()
     }
 
-    override fun handleMessage(message: Message) {
+    override suspend fun handleMessage(message: Message) {
         message.apply {
-            (obj as WebView.WebViewTransport).webView = webView
+            (obj as WebView.WebViewTransport).webView = webView()
         }.sendToTarget()
     }
 
@@ -362,37 +376,35 @@ class TabAdapter @AssistedInject constructor(
     override fun focusRequests(): Flow<Unit> = focusSharedFlow
     override fun showHideToolbar(): Flow<Boolean> = showHideFlow
 
-    override var isForeground: Boolean = false
-        set(value) {
-            field = value
-            if (field) {
-                webView.onResume()
-                webView.settings.offscreenPreRaster = true
-                latentInitializer?.let(::loadFromInitializer)
-                latentInitializer = null
-            } else {
-                webView.onPause()
-                webView.settings.offscreenPreRaster = false
-            }
-        }
+    override suspend fun foreground() {
+        webView().onResume()
+        webView().settings.offscreenPreRaster = true
+        latentInitializer?.let(::loadFromInitializer)
+        latentInitializer = null
+    }
 
-    override fun destroy() {
+    override suspend fun background() {
+        webView().onPause()
+        webView().settings.offscreenPreRaster = false
+    }
+
+    override suspend fun destroy() {
         viewIdGenerator.releaseViewId(id)
         previewModel.prune()
-        webView.stopLoading()
-        webView.onPause()
-        webView.clearHistory()
-        webView.removeAllViews()
-        webView.destroy()
+        webView().stopLoading()
+        webView().onPause()
+        webView().clearHistory()
+        webView().removeAllViews()
+        webView().destroy()
         tabCoroutineScope.cancel()
     }
 
-    override fun restore(bundle: Bundle) {
-        webView.restoreState(bundle)
+    override suspend fun restore(bundle: Bundle) {
+        webView().restoreState(bundle)
     }
 
-    override fun freeze(): Bundle = latentInitializer?.bundle
-        ?: Bundle(ClassLoader.getSystemClassLoader()).also(webView::saveState)
+    override suspend fun freeze(): Bundle = latentInitializer?.bundle
+        ?: Bundle(ClassLoader.getSystemClassLoader()).also(webView()::saveState)
 
     private fun createToolbarAwareTouchListener(context: Context): View.OnTouchListener {
         val gestureListener = CustomGestureListener(
@@ -439,7 +451,7 @@ class TabAdapter @AssistedInject constructor(
 
         canvas.scale(0.33F, 0.33F)
 
-        canvas.translate(-webView.scrollX.toFloat(), -webView.scrollY.toFloat())
+        canvas.translate(-webView().scrollX.toFloat(), -webView().scrollY.toFloat())
 
         // Layout the view if it hasn't been laid out yet
         view.layout(0, 0, width, height)

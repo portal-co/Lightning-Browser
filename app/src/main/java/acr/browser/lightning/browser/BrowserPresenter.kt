@@ -362,9 +362,9 @@ class BrowserPresenter @Inject constructor(
             state.updateSelf { copy(openTabs = false) }
             return
         }
-        currentTab?.isForeground = false
+        currentTab?.background()
         currentTab = tabModel
-        currentTab?.isForeground = true
+        currentTab?.foreground()
 
         val tab = tabModel ?: return run {
             val displayContent = searchBoxModel.getDisplayContent(
@@ -822,13 +822,13 @@ class BrowserPresenter @Inject constructor(
         }
     }
 
-    private fun onBackClick() {
+    private suspend fun onBackClick() {
         if (currentTab?.canGoBack() == true) {
             currentTab?.goBack()
         }
     }
 
-    private fun onForwardClick() {
+    private suspend fun onForwardClick() {
         if (currentTab?.canGoForward() == true) {
             currentTab?.goForward()
         }
@@ -913,11 +913,11 @@ class BrowserPresenter @Inject constructor(
         state.updateSelf { copy(findInPage = query) }
     }
 
-    private fun onFindNext() {
+    private suspend fun onFindNext() {
         currentTab?.findNext()
     }
 
-    private fun onFindPrevious() {
+    private suspend fun onFindPrevious() {
         currentTab?.findPrevious()
     }
 
@@ -955,7 +955,7 @@ class BrowserPresenter @Inject constructor(
     }
 
     private suspend fun onSslIconClick() {
-        currentTab?.sslCertificateInfo?.let {
+        currentTab?.getSslCertificateInfo()?.let {
             state.updateSelf { copy(dialog = BrowserViewState.Dialogs.SslInfo(it)) }
         }
     }
